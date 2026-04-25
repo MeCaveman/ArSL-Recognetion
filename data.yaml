@@ -1,0 +1,49 @@
+# ArSL21L Dataset Config for YOLO26
+# Dataset structure:
+#   dataset/
+#     sign_data/
+#       images/   ← all images
+#       labels/   ← all YOLO .txt labels
+#     train.txt   ← list of training image paths
+#     val.txt     ← list of validation image paths
+
+path: C:\Users\oalgh\Desktop\UNI\CPIT 380\Projects\ArSLRecognition\dataset  
+
+train: train.txt   # relative to path
+val:   val.txt     # relative to path
+
+# 32 Arabic Sign Language classes
+nc: 32
+names:
+  - ain
+  - al
+  - aleff
+  - bb
+  - dal
+  - dha
+  - dhad
+  - fa
+  - gaaf
+  - ghain
+  - ha
+  - haa
+  - jeem
+  - kaaf
+  - khaa
+  - la
+  - laam
+  - meem
+  - nun
+  - ra
+  - saad
+  - seen
+  - sheen
+  - ta
+  - taa
+  - thaa
+  - thal
+  - toot
+  - waw
+  - ya
+  - yaa
+  - zay
