@@ -7,7 +7,7 @@
 #     train.txt   ← list of training image paths
 #     val.txt     ← list of validation image paths
 
-path: C:\Users\oalgh\Desktop\UNI\CPIT 380\Projects\ArSLRecognition\dataset  
+path: C:\Users\oalgh\Desktop\UNI\CPIT 380\Projects\ArSLRecognition\data  
 
 train: train.txt   # relative to path
 val:   val.txt     # relative to path

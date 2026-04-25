@@ -1,5 +1,5 @@
 """
-To Run: python 4_detect_webcam.py
+To Run: python detect_webcam.py
 Press Q to quit.
 """
 

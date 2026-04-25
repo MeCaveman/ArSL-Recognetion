@@ -15,25 +15,31 @@ def main():
     try:
         from ultralytics import YOLO
     except ImportError:
-        print("ultralytics not installed. Run: pip install ultralytics")
+        print("ultralytics not installed. Run: uv add ultralytics")
         sys.exit(1)
 
     if not os.path.exists("data.yaml"):
         print("data.yaml not found. Make sure it's in the same folder as this script.")
         sys.exit(1)
 
-    # Quick check that the user updated the path
-    with open("data.yaml") as f:
-        content = f.read()
-    if "CHANGE THIS" in content:
-        print("⚠️  Please open data.yaml and set 'path' to your dataset folder first!")
+    # Read YAML using an explicit encoding so Windows does not default to cp1252.
+    try:
+        with open("data.yaml", encoding="utf-8") as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        print("Could not read data.yaml as UTF-8.")
+        print("Please re-save data.yaml using UTF-8 encoding, then run training again.")
         sys.exit(1)
 
-    print(f"🚀 Starting YOLO26 training...")
+    if "CHANGE THIS" in content:
+        print("Please open data.yaml and set 'path' to your dataset folder first!")
+        sys.exit(1)
+
+    print(f"Starting YOLO26 training...")
     print(f"   Model:   {MODEL}")
     print(f"   Epochs:  {EPOCHS}")
     print(f"   Batch:   {BATCH_SIZE}")
-    print(f"   Device:  GPU (CUDA)\n")
+    print(f"   Device:  {DEVICE}\n")
 
     model = YOLO(f"{MODEL}.pt")   # weights auto-downloaded on first run
 
@@ -51,7 +57,7 @@ def main():
     )
 
     weights = f"{PROJECT}/{RUN_NAME}/weights/best.pt"
-    print(f"\n✅ Training complete!")
+    print(f"\nTraining complete!")
     print(f"   Best model: {weights}")
     print(f"\n   Next step: run python app_gui.py")
 

@@ -1,5 +1,5 @@
 """
-To Run: python 3_detect_video.py --video path/to/video.mp4
+To Run: python detect_video.py --video path/to/video.mp4
 """
 
 import argparse

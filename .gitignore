@@ -1,12 +1,6 @@
 # Dataset
-dataset/
+data/
 arsl_yolo/
-
-# Training outputs
-runs/
-
-# Model weights
-*.pt
 
 # Python cache
 __pycache__/
