@@ -20,7 +20,7 @@ def main():
         sys.exit(1)
 
     if not os.path.exists(WEIGHTS):
-        print(f"Weights not found: {WEIGHTS}\n   Run 1_train.py first.")
+        print(f"Weights not found: {WEIGHTS}\n   Run train.py first.")
         sys.exit(1)
 
     model = YOLO(WEIGHTS)

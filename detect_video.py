@@ -27,7 +27,7 @@ def main():
         print(f"Video not found: {args.video}")
         sys.exit(1)
     if not os.path.exists(args.weights):
-        print(f"Weights not found: {args.weights}\n   Run 1_train.py first.")
+        print(f"Weights not found: {args.weights}\n   Run train.py first.")
         sys.exit(1)
 
     model = YOLO(args.weights)

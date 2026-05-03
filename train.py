@@ -2,7 +2,7 @@ import os
 import sys
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-EPOCHS     = 50          # increase to 100 for better accuracy
+EPOCHS     = 100          # increase to 100 for better accuracy
 BATCH_SIZE = 16          # reduce to 8 if GPU runs out of memory
 IMG_SIZE   = 640         # YOLO26 default
 MODEL      = "yolo26s"   # yolo26n=fastest, yolo26s=balanced, yolo26m/l/x=larger
