@@ -1,6 +1,7 @@
 # Dataset
 data/
 arsl_yolo/
+RGB_Dataset/
 
 # Python cache
 __pycache__/
