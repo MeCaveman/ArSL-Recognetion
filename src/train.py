@@ -18,13 +18,13 @@ def main():
         print("ultralytics not installed. Run: uv add ultralytics")
         sys.exit(1)
 
-    if not os.path.exists("data.yaml"):
-        print("data.yaml not found. Make sure it's in the same folder as this script.")
+    if not os.path.exists("config/data.yaml"):
+        print("config/data.yaml not found. Make sure it's in the project root.")
         sys.exit(1)
 
     # Read YAML using an explicit encoding so Windows does not default to cp1252.
     try:
-        with open("data.yaml", encoding="utf-8") as f:
+        with open("config/data.yaml", encoding="utf-8") as f:
             content = f.read()
     except UnicodeDecodeError:
         print("Could not read data.yaml as UTF-8.")
@@ -44,7 +44,7 @@ def main():
     model = YOLO(f"{MODEL}.pt")   # weights auto-downloaded on first run
 
     model.train(
-        data     = "data.yaml",
+        data     = "config/data.yaml",
         epochs   = EPOCHS,
         batch    = BATCH_SIZE,
         imgsz    = IMG_SIZE,
