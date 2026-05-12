@@ -22,8 +22,8 @@ from PySide6.QtWidgets import (
     QGraphicsOpacityEffect, QMessageBox, QComboBox,
 )
 from PySide6.QtCore import (
-    Qt, QThread, Signal, QTimer, QPropertyAnimation, QEasingCurve,
-    QRect, QRectF, QUrl,
+    Qt, QThread, Signal, QPropertyAnimation, QEasingCurve,
+    QRect, QRectF, QUrl, QTimer,
 )
 from PySide6.QtGui import (
     QFont, QPixmap, QColor, QPainter, QPen, QImage,
@@ -47,19 +47,25 @@ ARABIC_FONT    = "Noto Sans Arabic"
 
 # ─── Palette ──────────────────────────────────────────────────────────────────
 BG          = "#0a0a0a"
+BG_GRAD     = "#0f0f14"
 SURFACE     = "#111111"
 SURFACE2    = "#171717"
 SURFACE3    = "#1e1e1e"
+SURFACE_GLASS = "#1a1a1f"
 ACCENT      = "#00e5aa"
 ACCENT_DIM  = "#00a877"
 ACCENT_GLOW = "#00e5aa33"
+ACCENT_GLOW2 = "#00e5aa18"
 ACCENT_BG   = "#00e5aa11"
 RED         = "#e55353"
+RED_GLOW    = "#e5535344"
+ORANGE      = "#e5aa00"
 TEXT        = "#f0f0f0"
 TEXT_DIM    = "#888888"
 TEXT_MUTED  = "#3a3a3a"
 BORDER      = "#252525"
 BORDER2     = "#1e1e1e"
+BORDER3     = "#2a2a30"
 
 # ─── Letter data (32 ArSL21L classes, keys match YOLO class names) ────────────
 LETTER_DATA = {
@@ -151,6 +157,18 @@ MI_STOP     = ""   # stop
 ICON_FONT = "Material Icons"   # updated after loading
 
 
+def _load_arabic_font() -> str:
+    os.makedirs(FONTS_DIR, exist_ok=True)
+    for fname in sorted(os.listdir(FONTS_DIR)):
+        if "notosansarabic" in fname.lower().replace("-", "").replace("_", "") and (fname.lower().endswith(".ttf") or fname.lower().endswith(".otf")):
+            fid = QFontDatabase.addApplicationFont(os.path.join(FONTS_DIR, fname))
+            if fid != -1:
+                families = QFontDatabase.applicationFontFamilies(fid)
+                if families:
+                    return families[0]
+    return "Segoe UI"
+
+
 def mono(size: int, bold: bool = False) -> QFont:
     f = QFont(MONO_FONT, size, QFont.Bold if bold else QFont.Normal)
     f.setStyleHint(QFont.Monospace)
@@ -171,16 +189,46 @@ def micon(size: int) -> QFont:
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
-def load_hand_photo(key: str, size: int = 110) -> QPixmap:
+def load_hand_photo(key: str, size: int = 116) -> QPixmap:
     path = os.path.join(HAND_SIGNS_DIR, f"{key}_arsl.png")
     if os.path.exists(path):
-        px = QPixmap(path)
-        if not px.isNull():
-            side = min(px.width(), px.height())
-            x = (px.width() - side) // 2
-            y = (px.height() - side) // 2
-            px = px.copy(x, y, side, side)
-            return px.scaled(size, size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        src = QPixmap(path)
+        if not src.isNull():
+            # 1. Square crop
+            side = min(src.width(), src.height())
+            x = (src.width() - side) // 2
+            y = (src.height() - side) // 2
+            cropped = src.copy(x, y, side, side)
+            scaled = cropped.scaled(size - 8, size - 8, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+
+            # 2. Composite with border
+            px = QPixmap(size, size)
+            px.fill(Qt.transparent)
+            p = QPainter(px)
+            p.setRenderHint(QPainter.Antialiasing)
+            
+            # Outer background
+            path_bg = QPainterPath()
+            path_bg.addRoundedRect(0, 0, size, size, 16, 16)
+            p.fillPath(path_bg, QColor("#181818"))
+            
+            # Inner container
+            inner_rect = QRectF(3, 3, size - 6, size - 6)
+            path_inner = QPainterPath()
+            path_inner.addRoundedRect(inner_rect, 14, 14)
+            p.fillPath(path_inner, QColor("#1a1a20"))
+            
+            # Draw the hand sign image inside
+            # Clip to the rounded rect
+            p.setClipPath(path_inner)
+            p.drawPixmap(4, 4, scaled)
+            p.setClipping(False)
+
+            # Draw the accent border
+            p.setPen(QPen(QColor(ACCENT_DIM), 1.2))
+            p.drawPath(path_inner)
+            p.end()
+            return px
     return _make_hand_placeholder(size)
 
 
@@ -200,22 +248,36 @@ def _make_letter_pixmap(letter: str, size: int = 116) -> QPixmap:
     path = QPainterPath()
     path.addRoundedRect(0, 0, size, size, 16, 16)
     p.fillPath(path, QColor("#181818"))
-    p.setPen(QPen(QColor(ACCENT_DIM), 1.5))
-    p.drawPath(path)
-    p.setFont(QFont("Arial", int(size * 0.40), QFont.Bold))
+    inner = QPainterPath()
+    inner.addRoundedRect(3, 3, size - 6, size - 6, 14, 14)
+    p.fillPath(inner, QColor("#1a1a20"))
+    p.setPen(QPen(QColor(ACCENT_DIM), 1.2))
+    p.drawPath(inner)
+    p.setFont(QFont("Arial", int(size * 0.42), QFont.Bold))
     p.setPen(QColor(ACCENT))
     p.drawText(QRect(0, 0, size, size), Qt.AlignCenter, letter)
     p.end()
     return px
 
 
-def _make_hand_placeholder(size: int = 110) -> QPixmap:
+def _make_hand_placeholder(size: int = 116) -> QPixmap:
     px = QPixmap(size, size)
     px.fill(Qt.transparent)
     p = QPainter(px)
-    p.fillRect(0, 0, size, size, QColor(SURFACE3))
-    p.setPen(QPen(QColor(TEXT_MUTED), 1))
-    p.drawRect(0, 0, size - 1, size - 1)
+    p.setRenderHint(QPainter.Antialiasing)
+    
+    path_bg = QPainterPath()
+    path_bg.addRoundedRect(0, 0, size, size, 16, 16)
+    p.fillPath(path_bg, QColor("#181818"))
+    
+    inner_rect = QRectF(3, 3, size - 6, size - 6)
+    path_inner = QPainterPath()
+    path_inner.addRoundedRect(inner_rect, 14, 14)
+    p.fillPath(path_inner, QColor("#1a1a20"))
+    
+    p.setPen(QPen(QColor(BORDER), 1.2))
+    p.drawPath(path_inner)
+    
     p.setFont(gsans(7))
     p.setPen(QColor(TEXT_MUTED))
     p.drawText(QRect(0, 0, size, size), Qt.AlignCenter, "no photo")
@@ -232,17 +294,20 @@ def make_webcam_placeholder(w: int = 700, h: int = 480) -> QPixmap:
     for x in range(0, w, 40):
         p.drawLine(x, 0, x, h)
     for y in range(0, h, 40):
-        p.drawLine(0, y, w, y)
-    cx, cy, r = w // 2, h // 2, 48
+        p.drawLine(0, y, w, h)
+    cx, cy, r = w // 2, h // 2, 52
     glow = QRadialGradient(cx, cy, r * 2)
-    glow.setColorAt(0, QColor(ACCENT_GLOW))
+    glow.setColorAt(0, QColor(ACCENT_GLOW2))
+    glow.setColorAt(0.6, QColor(ACCENT_GLOW))
     glow.setColorAt(1, Qt.transparent)
     p.fillRect(cx - r * 2, cy - r * 2, r * 4, r * 4, glow)
-    p.setPen(QPen(QColor(ACCENT_DIM), 2, Qt.DashLine))
+    p.setPen(QPen(QColor(ACCENT_DIM), 1.5, Qt.DashLine))
     p.drawEllipse(cx - r, cy - r, r * 2, r * 2)
-    p.setFont(gsans(12))
+    p.setPen(QPen(QColor(ACCENT), 4, Qt.SolidLine))
+    p.drawPoint(cx, cy)
+    p.setFont(gsans(11))
     p.setPen(QColor(TEXT_MUTED))
-    p.drawText(QRect(0, cy + r + 16, w, 30), Qt.AlignCenter, "Press  ▶  to start webcam")
+    p.drawText(QRect(0, cy + r + 24, w, 30), Qt.AlignCenter, "Press  ▶  to start webcam")
     p.end()
     return px
 
@@ -251,7 +316,7 @@ def _divider_h() -> QFrame:
     f = QFrame()
     f.setFrameShape(QFrame.HLine)
     f.setFixedHeight(1)
-    f.setStyleSheet(f"background: {BORDER}; border: none;")
+    f.setStyleSheet(f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 transparent, stop:0.5 {BORDER}, stop:1 transparent); border: none;")
     return f
 
 
@@ -299,8 +364,6 @@ class WebcamThread(QThread):
             if results[0].boxes:
                 top = max(results[0].boxes, key=lambda b: float(b.conf))
                 self.detection.emit(self._model.names[int(top.cls)])
-            else:
-                self.detection.emit("")
         cap.release()
 
     def stop(self):
@@ -401,12 +464,12 @@ class SettingsDialog(QDialog):
                 border: 1px solid {BORDER}; border-radius: 8px;
                 padding-left: 12px;
             }}
-            QComboBox::drop-down {{ border: none; width: 24px; }}
+            QComboBox::drop-down {{ border: none; width: 28px; }}
             QComboBox::down-arrow {{
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
                 border-top: 5px solid {TEXT_DIM};
-                width: 0; height: 0; margin-right: 6px;
+                width: 0; height: 0; margin-right: 8px;
             }}
             QComboBox QAbstractItemView {{
                 background: {SURFACE3}; color: {TEXT};
@@ -480,6 +543,10 @@ class SettingsDialog(QDialog):
             QPushButton:hover {{
                 background: {SURFACE2}; color: {TEXT}; border-color: {ACCENT_DIM};
             }}
+            QPushButton:pressed {{
+                background: {SURFACE3}; color: {TEXT};
+                border-color: {ACCENT}; padding-top: 1px; padding-left: 1px;
+            }}
         """)
         cancel_btn.clicked.connect(self.reject)
 
@@ -494,6 +561,10 @@ class SettingsDialog(QDialog):
             }}
             QPushButton:hover {{
                 background: {ACCENT}; color: {BG};
+            }}
+            QPushButton:pressed {{
+                background: {ACCENT}; color: {BG};
+                padding-top: 1px; padding-left: 1px;
             }}
         """)
         apply_btn.clicked.connect(self.accept)
@@ -518,11 +589,7 @@ class LetterPanel(QWidget):
         self._pending_key     = ""
         self._animating       = False
         self._auto_played_key = ""
-
-        self._hold_timer = QTimer(self)
-        self._hold_timer.setSingleShot(True)
-        self._hold_timer.setInterval(500)
-        self._hold_timer.timeout.connect(self._auto_play_current)
+        self._hold_start      = 0.0
 
         self._player    = QMediaPlayer()
         self._audio_out = QAudioOutput()
@@ -539,8 +606,16 @@ class LetterPanel(QWidget):
         r = QRectF(5, 5, self.width() - 10, self.height() - 10)
         path = QPainterPath()
         path.addRoundedRect(r, 14, 14)
-        p.fillPath(path, QColor(SURFACE))
-        p.setPen(QPen(QColor(BORDER), 1))
+
+        glow_color = QColor(ACCENT_GLOW2) if self._has_detection else QColor("#00000000")
+        glow_pen = QPen(glow_color, 24)
+        glow_pen.setStyle(Qt.SolidLine)
+        p.setPen(glow_pen)
+        p.drawPath(path)
+
+        p.fillPath(path, QColor(SURFACE_GLASS))
+        border_pen = QPen(QColor(ACCENT) if self._has_detection else QColor(BORDER3), 1)
+        p.setPen(border_pen)
         p.drawPath(path)
         p.end()
 
@@ -573,20 +648,27 @@ class LetterPanel(QWidget):
         w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay = QVBoxLayout(w)
         lay.setAlignment(Qt.AlignCenter)
-        lay.setSpacing(12)
+        lay.setSpacing(16)
 
-        symbol = QLabel("◆")
-        symbol.setFont(gsans(26))
-        symbol.setAlignment(Qt.AlignCenter)
-        symbol.setStyleSheet(f"color: {TEXT_MUTED}; background: transparent;")
+        icon = QLabel("✋")
+        icon.setFont(gsans(32))
+        icon.setAlignment(Qt.AlignCenter)
+        icon.setStyleSheet(f"color: {TEXT_MUTED}; background: transparent;")
 
-        msg = QLabel("make a sign\nto begin")
+        msg = QLabel("show a sign\nto begin")
         msg.setFont(gsans(11))
         msg.setAlignment(Qt.AlignCenter)
-        msg.setStyleSheet(f"color: {TEXT_MUTED}; background: transparent;")
+        msg.setWordWrap(True)
+        msg.setStyleSheet(f"color: {TEXT_MUTED}; background: transparent; padding: 0 20px;")
 
-        lay.addWidget(symbol)
+        hint = QLabel("or click  ▶  to start webcam")
+        hint.setFont(gsans(8))
+        hint.setAlignment(Qt.AlignCenter)
+        hint.setStyleSheet(f"color: {BORDER3}; background: transparent;")
+
+        lay.addWidget(icon)
         lay.addWidget(msg)
+        lay.addWidget(hint)
         return w
 
     def _page_content(self) -> QWidget:
@@ -603,32 +685,43 @@ class LetterPanel(QWidget):
         img_row.setSpacing(14)
         img_row.addStretch()
 
+        left_col = QVBoxLayout()
+        left_col.setSpacing(6)
+        left_col.addStretch()
+
         self.letter_img = QLabel()
         self.letter_img.setFixedSize(116, 116)
         self.letter_img.setAlignment(Qt.AlignCenter)
         self.letter_img.setStyleSheet("background: transparent;")
-        img_row.addWidget(self.letter_img)
+        left_col.addWidget(self.letter_img)
+
+        # Label for alignment
+        letter_label = QLabel("Arabic Letter")
+        letter_label.setFont(gsans(8))
+        letter_label.setAlignment(Qt.AlignCenter)
+        letter_label.setStyleSheet(f"color: {TEXT_DIM}; background: transparent;")
+        left_col.addWidget(letter_label)
+        left_col.addStretch()
+
+        img_row.addLayout(left_col)
 
         right_col = QVBoxLayout()
         right_col.setSpacing(6)
         right_col.addStretch()
 
         self.hand_img = QLabel()
-        self.hand_img.setFixedSize(110, 110)
+        self.hand_img.setFixedSize(116, 116)
         self.hand_img.setAlignment(Qt.AlignCenter)
-        self.hand_img.setStyleSheet(f"""
-            background: {SURFACE3};
-            border-radius: 10px;
-        """)
+        self.hand_img.setStyleSheet("background: transparent;")
+        right_col.addWidget(self.hand_img)
 
         self.hand_label = QLabel("")
         self.hand_label.setFont(gsans(8))
         self.hand_label.setAlignment(Qt.AlignCenter)
         self.hand_label.setStyleSheet(f"color: {TEXT_DIM}; background: transparent;")
-
-        right_col.addWidget(self.hand_img)
         right_col.addWidget(self.hand_label)
         right_col.addStretch()
+
         img_row.addLayout(right_col)
         img_row.addStretch()
         lay.addLayout(img_row)
@@ -696,17 +789,23 @@ class LetterPanel(QWidget):
         self.audio_slider = QSlider(Qt.Horizontal)
         self.audio_slider.setRange(0, 1000)
         self.audio_slider.setValue(0)
-        self.audio_slider.setFixedHeight(6)
+        self.audio_slider.setFixedHeight(8)
         self.audio_slider.setStyleSheet(f"""
             QSlider::groove:horizontal {{
-                background: {SURFACE3}; height: 4px; border-radius: 2px;
+                background: {SURFACE3}; height: 3px; border-radius: 2px;
             }}
             QSlider::sub-page:horizontal {{
-                background: {ACCENT}; height: 4px; border-radius: 2px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 {ACCENT_DIM}, stop:1 {ACCENT});
+                height: 3px; border-radius: 2px;
             }}
             QSlider::handle:horizontal {{
-                background: {ACCENT}; width: 10px; height: 10px;
-                margin: -3px 0; border-radius: 5px;
+                background: {ACCENT}; width: 12px; height: 12px;
+                margin: -5px 0; border-radius: 6px;
+            }}
+            QSlider::handle:horizontal:hover {{
+                background: {TEXT}; width: 14px; height: 14px;
+                margin: -6px 0; border-radius: 7px;
             }}
         """)
         self.audio_slider.sliderMoved.connect(self._on_slider_moved)
@@ -742,7 +841,11 @@ class LetterPanel(QWidget):
                 border: 1px solid {BORDER}; border-radius: 8px;
             }}
             QPushButton:hover {{
-                background: {SURFACE2}; color: {TEXT}; border-color: {ACCENT_DIM};
+                background: {ACCENT_BG}; color: {ACCENT}; border-color: {ACCENT_DIM};
+            }}
+            QPushButton:pressed {{
+                background: {ACCENT}; color: {BG};
+                border-color: {ACCENT}; padding-top: 1px; padding-left: 1px;
             }}
         """)
         return btn
@@ -762,12 +865,10 @@ class LetterPanel(QWidget):
             self._player.setPosition(int(val * dur / 1000))
 
     def _play_pronunciation(self):
+        if not self._player.source().isValid():
+            return
         self._player.stop()
         self._player.play()
-
-    def _auto_play_current(self):
-        self._auto_played_key = self._current_key
-        self._play_pronunciation()
 
     def _load_audio(self, key: str):
         path = find_sound_path(key)
@@ -780,7 +881,7 @@ class LetterPanel(QWidget):
     def _populate(self, key: str):
         data = LETTER_DATA[key]
         self.letter_img.setPixmap(_make_letter_pixmap(data["arabic"], 116))
-        self.hand_img.setPixmap(load_hand_photo(key, 110))
+        self.hand_img.setPixmap(load_hand_photo(key, 116))
         self.hand_label.setText(data["name_en"])
         self.name_ar.setText(data["name_ar"])
         self.desc_ar.setText(data["desc_ar"])
@@ -805,7 +906,7 @@ class LetterPanel(QWidget):
         self._anim.start()
 
     # ── Public API ────────────────────────────────────────────────────────────
-    def show_letter(self, key: str):
+    def show_letter(self, key: str, auto_hold: bool = True):
         if key not in LETTER_DATA:
             return
 
@@ -813,17 +914,20 @@ class LetterPanel(QWidget):
             self._has_detection   = True
             self._current_key     = key
             self._auto_played_key = ""
+            self._hold_start      = time.time()
             self._populate(key)
             self._stack.setCurrentIndex(1)
             self._fade(0.0, 1.0, 320)
-            self._hold_timer.start()
             return
 
         if key == self._current_key:
+            if auto_hold and not self._auto_played_key and time.time() - self._hold_start >= 1.5:
+                self._auto_played_key = key
+                self._play_pronunciation()
             return
 
-        self._hold_timer.stop()
         self._auto_played_key = ""
+        self._hold_start      = time.time()
 
         if self._animating:
             self._pending_key = key
@@ -837,12 +941,12 @@ class LetterPanel(QWidget):
             self._pending_key = ""
             self._current_key = actual
             self._auto_played_key = ""
+            self._hold_start      = time.time()
             self._populate(actual)
             self._fade(0.0, 1.0, 220, _done)
 
         def _done():
             self._animating = False
-            self._hold_timer.start()
             if self._pending_key:
                 next_key = self._pending_key
                 self._pending_key = ""
@@ -851,7 +955,6 @@ class LetterPanel(QWidget):
         self._fade(1.0, 0.0, 140, _mid)
 
     def show_placeholder(self):
-        self._hold_timer.stop()
         self._player.stop()
         self._has_detection = False
         self._current_key   = ""
@@ -863,16 +966,37 @@ class WebcamCanvas(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(700, 480)
-        self._pixmap   = None
-        self._fps_text = ""
+        self._pixmap    = None
+        self._fps_text  = ""
+        self._active    = False
+        self._dot_alpha = 255
+        self._dot_dir   = -1
+        self._dot_timer = QTimer()
+        self._dot_timer.setInterval(80)
+        self._dot_timer.timeout.connect(self._pulse_dot)
         self._show_placeholder()
+
+    def _pulse_dot(self):
+        self._dot_alpha += self._dot_dir * 8
+        if self._dot_alpha <= 80:
+            self._dot_alpha = 80
+            self._dot_dir = 1
+        elif self._dot_alpha >= 255:
+            self._dot_alpha = 255
+            self._dot_dir = -1
+        self.update()
 
     def _show_placeholder(self):
         self._pixmap = make_webcam_placeholder(700, 480)
+        self._active = False
+        self._dot_timer.stop()
         self.update()
 
     def set_frame(self, px: QPixmap):
         self._pixmap = px.scaled(700, 480, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        if not self._active:
+            self._active = True
+            self._dot_timer.start()
         self.update()
 
     def set_fps(self, fps: float):
@@ -902,15 +1026,40 @@ class WebcamCanvas(QWidget):
             y = (self.height() - self._pixmap.height()) // 2
             p.drawPixmap(x, y, self._pixmap)
 
-        p.setClipping(False)
+        # ── Recording indicator ──────────────────────────────────────────
+        if self._active:
+            dot_r = 5
+            dot_x = 14 + dot_r
+            dot_y = 14 + dot_r
+            c = QColor(RED)
+            c.setAlpha(self._dot_alpha)
+            p.setBrush(c)
+            p.setPen(Qt.NoPen)
+            p.drawEllipse(dot_x - dot_r, dot_y - dot_r, dot_r * 2, dot_r * 2)
 
+            p.setPen(QPen(QColor("#ffffff88"), 1))
+            p.setFont(gsans(7))
+            p.drawText(dot_x + dot_r + 6, dot_y + 3, "REC")
+
+        # ── FPS pill ─────────────────────────────────────────────────────
         if self._fps_text:
             f = mono(8)
             p.setFont(f)
-            p.setPen(QColor("#2e2e2e"))
             tw = QFontMetrics(f).horizontalAdvance(self._fps_text)
-            p.drawText(self.width() - tw - 8, self.height() - 8, self._fps_text)
+            pad_x, pad_y = 10, 6
+            bw = tw + pad_x * 2
+            bh = 18
+            bx = self.width() - bw - 10
+            by = self.height() - bh - 10
+            p.setBrush(QColor("#00000099"))
+            p.setPen(Qt.NoPen)
+            pill = QPainterPath()
+            pill.addRoundedRect(bx, by, bw, bh, 9, 9)
+            p.drawPath(pill)
+            p.setPen(QColor(TEXT_DIM))
+            p.drawText(bx + pad_x, by + 13, self._fps_text)
 
+        p.setClipping(False)
         p.end()
 
 
@@ -923,7 +1072,7 @@ class StatusBar(QWidget):
         self.setStyleSheet(f"""
             QWidget {{
                 background: #0d0d0d;
-                border-top: 2px solid {BORDER};
+                border-top: 1px solid {BORDER3};
             }}
         """)
 
@@ -931,34 +1080,48 @@ class StatusBar(QWidget):
         lay.setContentsMargins(20, 0, 20, 0)
         lay.setSpacing(8)
 
-        self._dot = QLabel("◆")
-        self._dot.setFont(mono(7))
-        self._dot.setFixedWidth(12)
+        self._dot = QLabel("●")
+        self._dot.setFont(mono(5))
+        self._dot.setFixedWidth(10)
         self._dot.setStyleSheet(f"color: {TEXT_MUTED}; background: transparent; border: none;")
-        lay.addWidget(self._dot)
+        self._dot_fx = QGraphicsOpacityEffect()
+        self._dot_fx.setOpacity(0.6)
+        self._dot.setGraphicsEffect(self._dot_fx)
+        self._pulse_anim = QPropertyAnimation(self._dot_fx, b"opacity")
+        self._pulse_anim.setDuration(1600)
+        self._pulse_anim.setStartValue(0.3)
+        self._pulse_anim.setEndValue(1.0)
+        self._pulse_anim.setEasingCurve(QEasingCurve.InOutSine)
+        self._pulse_anim.setLoopCount(-1)
 
         self._label = QLabel("Status: Ready")
         self._label.setFont(gsans(9))
         self._label.setStyleSheet(f"color: {TEXT_DIM}; background: transparent; border: none;")
+        lay.addWidget(self._dot)
         lay.addWidget(self._label)
         lay.addStretch()
 
         self.set_idle()
 
-    def _apply(self, text: str, dot_color: str):
+    def _apply(self, text: str, dot_color: str, pulse: bool = False):
         self._label.setText(text)
         self._dot.setStyleSheet(
             f"color: {dot_color}; background: transparent; border: none;"
         )
+        if pulse:
+            self._pulse_anim.start()
+        else:
+            self._pulse_anim.stop()
+            self._dot_fx.setOpacity(0.6)
 
     def set_idle(self):          self._apply("Status:  Ready",                    TEXT_MUTED)
-    def set_webcam_on(self):     self._apply("Status:  Webcam  ·  Recognizing",  ACCENT)
+    def set_webcam_on(self):     self._apply("Status:  Webcam  ·  Recognizing",  ACCENT, pulse=True)
     def set_webcam_paused(self): self._apply("Status:  Webcam paused",            TEXT_DIM)
     def set_stopped(self):       self._apply("Status:  Stopped",                 RED)
 
     def set_recognizing_image(self, filename: str = ""):
         name = filename.replace("\\", "/").split("/")[-1] or "image"
-        self._apply(f"Status:  Image  ·  {name}", "#e5aa00")
+        self._apply(f"Status:  Image  ·  {name}", ORANGE)
 
     def set_error(self, msg: str):
         self._apply(f"Error:  {msg}", RED)
@@ -970,25 +1133,26 @@ class TopBar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(56)
+        self.setFixedHeight(64)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setStyleSheet(f"background: {SURFACE}; border-bottom: 1px solid {BORDER};")
+        self.setStyleSheet("background: transparent; border: none;")
 
         lay = QHBoxLayout(self)
         lay.setContentsMargins(16, 0, 16, 0)
         lay.setSpacing(0)
 
         self._logo_lbl = QLabel()
-        self._logo_lbl.setFixedSize(34, 34)
+        self._logo_lbl.setFixedSize(50, 50)
         self._logo_lbl.setAlignment(Qt.AlignCenter)
+        self._logo_lbl.setStyleSheet("background: transparent;")
         self._load_logo()
         lay.addWidget(self._logo_lbl)
-        lay.addSpacing(10)
+        lay.addSpacing(14)
 
         lay.addStretch()
 
         title_row = QHBoxLayout()
-        title_row.setSpacing(10)
+        title_row.setSpacing(8)
         title_row.setAlignment(Qt.AlignCenter)
 
         main_title = QLabel("Arabic Sign Language Recognition")
@@ -1000,13 +1164,13 @@ class TopBar(QWidget):
         sep = QLabel("·")
         sep.setFont(gsans(13, bold=True))
         sep.setAlignment(Qt.AlignCenter)
-        sep.setStyleSheet(f"color: {ACCENT_DIM}; background: transparent;")
+        sep.setStyleSheet(f"color: {ACCENT_DIM}; background: transparent; padding: 0 2px;")
         title_row.addWidget(sep)
 
         ar_title = QLabel("لغة الإشارة العربية")
         ar_title.setFont(QFont(ARABIC_FONT, 12, QFont.Bold))
         ar_title.setAlignment(Qt.AlignCenter)
-        ar_title.setStyleSheet(f"color: {ACCENT}; background: transparent;")
+        ar_title.setStyleSheet(f"color: {ACCENT}; background: transparent; letter-spacing: 1px;")
         title_row.addWidget(ar_title)
 
         lay.addLayout(title_row)
@@ -1026,30 +1190,43 @@ class TopBar(QWidget):
             QPushButton:hover {{
                 background: {ACCENT_BG}; color: {ACCENT}; border-color: {ACCENT_DIM};
             }}
+            QPushButton:pressed {{
+                background: {ACCENT_BG}; color: {ACCENT};
+                border-color: {ACCENT}; padding-top: 1px; padding-left: 1px;
+            }}
         """)
         settings_btn.clicked.connect(self.settings_clicked)
         lay.addWidget(settings_btn)
 
     def _load_logo(self):
-        for fname in ("logo.png", "logo.svg", "logo.ico"):
+        # Look for logo in both project root and assets folder
+        for fname in ("assets/logo.png", "logo.png", "logo.svg", "logo.ico"):
             px = QPixmap(fname)
             if not px.isNull():
                 self._logo_lbl.setPixmap(
-                    px.scaled(34, 34, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    px.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 )
                 return
-        self._logo_lbl.setText("◆")
-        self._logo_lbl.setFont(mono(20))
-        self._logo_lbl.setStyleSheet(f"color: {ACCENT}; background: transparent;")
+        self._logo_lbl.setText("◈")
+        self._logo_lbl.setFont(gsans(24, bold=True))
+        self._logo_lbl.setStyleSheet(f"color: {ACCENT_DIM}; background: transparent;")
 
 
 # ─── Main window ──────────────────────────────────────────────────────────────
 class ArSLMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ArSL Recognition — YOLO26")
+        self.setWindowTitle("ArSL Recognition — لغة الإشارة العربية")
         self.setFixedSize(1080, 700)
-        self.setStyleSheet(f"background: {BG};")
+        
+        # Set window icon if icon exists
+        icon_path = "assets/icon.png"
+        if not os.path.exists(icon_path):
+            icon_path = "icon.png"
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QPixmap(icon_path))
+
+        self.setStyleSheet(f"background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {BG}, stop:1 {BG_GRAD});")
 
         self.model = None
         self._cam_thread: WebcamThread | None = None
@@ -1095,7 +1272,7 @@ class ArSLMainWindow(QMainWindow):
 
         section_lbl = QLabel("Webcam Window")
         section_lbl.setFont(gsans(10, bold=True))
-        section_lbl.setStyleSheet(f"color: {TEXT_DIM}; background: transparent;")
+        section_lbl.setStyleSheet(f"color: {TEXT}; background: transparent;")
         header_row.addWidget(section_lbl)
         header_row.addStretch()
 
@@ -1111,6 +1288,10 @@ class ArSLMainWindow(QMainWindow):
             }}
             QPushButton:hover {{
                 background: {ACCENT_BG}; color: {ACCENT}; border-color: {ACCENT_DIM};
+            }}
+            QPushButton:pressed {{
+                background: {ACCENT}; color: {BG};
+                border-color: {ACCENT}; padding-top: 1px; padding-left: 1px;
             }}
         """)
         self.upload_btn.clicked.connect(self._open_image)
@@ -1173,6 +1354,10 @@ class ArSLMainWindow(QMainWindow):
             }}
             QPushButton:hover {{
                 background: {ACCENT_DIM}; color: {BG}; border-color: {ACCENT};
+            }}
+            QPushButton:pressed {{
+                background: {ACCENT}; color: {BG};
+                border-color: {ACCENT}; padding-top: 1px; padding-left: 1px;
             }}
         """)
         return btn
@@ -1248,14 +1433,11 @@ class ArSLMainWindow(QMainWindow):
     def _on_image_done(self, px: QPixmap, key: str):
         self.canvas.set_frame(px)
         if key:
-            self._on_detection(key)
+            self._on_detection(key, auto_hold=False)
 
-    def _on_detection(self, key: str):
-        if key:
-            if key in LETTER_DATA:
-                self.letter_panel.show_letter(key)
-        else:
-            self.letter_panel._hold_timer.stop()
+    def _on_detection(self, key: str, auto_hold: bool = True):
+        if key in LETTER_DATA:
+            self.letter_panel.show_letter(key, auto_hold=auto_hold)
 
     def _stop_threads(self):
         if self._cam_thread and self._cam_thread.isRunning():
@@ -1280,7 +1462,7 @@ def main():
     global SANS_FONT, ICON_FONT, ARABIC_FONT
     SANS_FONT   = _load_or_download("Inter",          "Segoe UI")
     ICON_FONT   = _load_or_download("Material Icons", "Material Icons")
-    ARABIC_FONT = _load_or_download("Noto Sans Arabic", "Segoe UI")
+    ARABIC_FONT = _load_arabic_font()
 
     palette = QPalette()
     palette.setColor(QPalette.Window,          QColor(BG))
