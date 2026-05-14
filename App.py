@@ -32,14 +32,26 @@ from PySide6.QtGui import (
 )
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 
+
+# ─── Helper ──────────────────────────────────────────────────────────────────
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        # If not running as a PyInstaller app, use the current directory
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
 # ─── Config ───────────────────────────────────────────────────────────────────
-WEIGHTS        = "runs/train/arsl21l/weights/best.pt"
+WEIGHTS        = resource_path("runs/train/arsl21l/weights/best.pt")
 IMG_SIZE       = 640
 CONF           = 0.45
-DEVICE         = "cpu"
-HAND_SIGNS_DIR = "hand_signs"
-SOUNDS_DIR     = "assets/sounds"
-FONTS_DIR      = "assets/fonts"
+DEVICE         = 0   # 0 for GPU / "CPU" for CPU Inference
+HAND_SIGNS_DIR = resource_path("hand_signs")
+SOUNDS_DIR     = resource_path("assets/sounds")
+FONTS_DIR      = resource_path("assets/fonts")
 MONO_FONT      = "JetBrains Mono"
 MONO_FALLBACK  = "Consolas"
 SANS_FONT      = "Segoe UI"   # updated at runtime after Google Sans is loaded
@@ -1201,7 +1213,7 @@ class TopBar(QWidget):
     def _load_logo(self):
         # Look for logo in both project root and assets folder
         for fname in ("assets/logo.png", "logo.png", "logo.svg", "logo.ico"):
-            px = QPixmap(fname)
+            px = QPixmap(resource_path(fname))
             if not px.isNull():
                 self._logo_lbl.setPixmap(
                     px.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -1218,11 +1230,11 @@ class ArSLMainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("ArSL Recognition — لغة الإشارة العربية")
         self.setFixedSize(1080, 700)
-        
+
         # Set window icon if icon exists
-        icon_path = "assets/icon.png"
+        icon_path = resource_path("assets/icon.png")
         if not os.path.exists(icon_path):
-            icon_path = "icon.png"
+            icon_path = resource_path("icon.png")
         if os.path.exists(icon_path):
             self.setWindowIcon(QPixmap(icon_path))
 

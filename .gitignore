@@ -1,3 +1,5 @@
+dist/
+
 # Dataset
 data/
 arsl_yolo/

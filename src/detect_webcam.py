@@ -8,7 +8,18 @@ import os
 import time
 import cv2
 
-WEIGHTS  = "runs/train/arsl21l/weights/best.pt"
+# ─── Helper ──────────────────────────────────────────────────────────────────
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        # If not running as a PyInstaller app, use the current directory
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+WEIGHTS  = resource_path("runs/train/arsl21l/weights/best.pt")
 IMG_SIZE = 640
 CONF     = 0.45
 
